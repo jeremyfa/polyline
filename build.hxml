@@ -1,0 +1,5 @@
+-cp src
+-js index.js
+--macro include('polyline')
+-main polyline.Test
+-cmd node index.js
