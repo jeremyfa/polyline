@@ -1,0 +1,11 @@
+{
+  "name": "polyline",
+  "url" : "https://github.com/jeremyfa/polyline/",
+  "license": "MIT",
+  "tags": ["drawing", "lines", "mesh", "polygon", "polyline", "extrude", "graphics", "gl"],
+  "description": "An utility to create polylines written in Haxe (ported from https://github.com/mattdesl/extrude-polyline)",
+  "version": "1.0.0",
+  "releasenote": "Initial port",
+  "contributors": ["jeremyfa"],
+  "dependencies": {}
+}
