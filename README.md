@@ -1,8 +1,8 @@
 # polyline
 
-![https://camo.githubusercontent.com/f78843ec2d10026f91eaf3f51d4a15426141cbb5/687474703a2f2f692e696d6775722e636f6d2f4c474b73546a322e706e67]()
+![](https://camo.githubusercontent.com/f78843ec2d10026f91eaf3f51d4a15426141cbb5/687474703a2f2f692e696d6775722e636f6d2f4c474b73546a322e706e67)
 
-An utility to create polylines written in Haxe (ported from https://github.com/mattdesl/extrude-polyline)
+An utility to create polylines written in Haxe (ported from https://github.com/mattdesl/extrude-polyline ; preview image from original library)
 
 ### Example
 
