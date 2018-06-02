@@ -104,7 +104,7 @@ class Stroke {
 
     } //build
 
-    inline function mapThickness(pointX:Float, pointY:Float, i:Int, points:Array<Float>) {
+    function mapThickness(pointX:Float, pointY:Float, i:Int, points:Array<Float>) {
 
         return this.thickness;
 
