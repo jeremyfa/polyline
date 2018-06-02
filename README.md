@@ -4,7 +4,7 @@
 
 An utility to create polylines written in Haxe (ported from https://github.com/mattdesl/extrude-polyline ; preview image from original library)
 
-### Example
+## Example
 
 ```haxe
 var points:Array<Float> = [
@@ -26,3 +26,7 @@ stroke.build(points, vertices, indices);
 trace('vertices: $vertices');
 trace('indices: $indices');
 ```
+
+## License
+
+MIT, see [LICENSE.md](/LICENSE.md) for details.
