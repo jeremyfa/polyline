@@ -60,7 +60,7 @@ class Stroke {
 
     } //new
 
-    public function build(points:Array<Float>, vertices:Array<Float>, indices:Array<Float>) {
+    public function build(points:Array<Float>, vertices:Array<Float>, indices:Array<Int>) {
 
         // Empty line
         if (vertices.length > 0) {
@@ -110,7 +110,7 @@ class Stroke {
 
     } //mapThickness
 
-    inline function _seg(vertices:Array<Float>, indices:Array<Float>, index:Int, lastX:Float, lastY:Float, curX:Float, curY:Float, nextX:Float, nextY:Float, halfThick:Float) {
+    inline function _seg(vertices:Array<Float>, indices:Array<Int>, index:Int, lastX:Float, lastY:Float, curX:Float, curY:Float, nextX:Float, nextY:Float, halfThick:Float) {
 
         var count = 0;
         var capSquare = (this.cap == SQUARE);

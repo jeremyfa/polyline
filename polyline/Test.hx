@@ -13,7 +13,7 @@ class Test {
         stroke.miterLimit = 10;
 
         var vertices:Array<Float> = [];
-        var indices:Array<Float> = [];
+        var indices:Array<Int> = [];
 
         stroke.build(points, vertices, indices);
 
