@@ -20,6 +20,9 @@ class Stroke {
     /** The cap type. Can be `BUTT` or `SQUARE`. Default `BUTT` */
     public var cap:StrokeCap = BUTT;
 
+    /** Will try to join the first and last points together if they are identical */
+    public var canLoop:Bool = true;
+
     var tmpX:Float = 0;
     
     var tmpY:Float = 0;
@@ -100,6 +103,27 @@ class Stroke {
 
             count += amt;
             i += 2;
+        }
+        
+        // Is end point the same as start point?
+        // TODO check if it works in all situations?
+        if (canLoop && cap == BUTT) {
+            if (points[0] == points[points.length-2] && points[1] == points[points.length-1]) {
+
+                var tmpX = (vertices[vertices.length-2] + vertices[2]) * 0.5;
+                var tmpY = (vertices[vertices.length-1] + vertices[3]) * 0.5;
+                vertices[vertices.length-2] = tmpX;
+                vertices[2] = tmpX;
+                vertices[vertices.length-1] = tmpY;
+                vertices[3] = tmpY;
+
+                tmpX = (vertices[vertices.length-4] + vertices[0]) * 0.5;
+                tmpY = (vertices[vertices.length-3] + vertices[1]) * 0.5;
+                vertices[vertices.length-4] = tmpX;
+                vertices[0] = tmpX;
+                vertices[vertices.length-3] = tmpY;
+                vertices[1] = tmpY;
+            }
         }
 
     } //build
