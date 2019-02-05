@@ -67,10 +67,18 @@ class Stroke {
 
         // Empty line
         if (vertices.length > 0) {
+            #if cpp
+            untyped vertices.__SetSize(0);
+            #else
             vertices.splice(0, vertices.length);
+            #end
         }
         if (indices.length > 0) {
+            #if cpp
+            untyped indices.__SetSize(0);
+            #else
             indices.splice(0, indices.length);
+            #end
         }
 
         if (points.length == 0) {
