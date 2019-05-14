@@ -6,6 +6,12 @@ class Stroke {
 
     inline static var NUMBER_NONE:Float = -9999999999.0;
 
+    inline static var MATH_TWO_PI:Float = 6.28318530718;
+
+    inline static var MATH_HALF_PI:Float = 1.57079632679;
+
+    inline static var MATH_PI_AND_HALF:Float = 4.71238898038;
+
     static var miterUtils = new MiterUtils();
 
     /** The limit before miters turn into bevels. Default 10 */
@@ -21,7 +27,7 @@ class Stroke {
     public var cap:StrokeCap = BUTT;
 
     /** Will try to join the first and last points together if they are identical */
-    public var canLoop:Bool = true;
+    public var canLoop:Bool = false;
 
     var tmpX:Float = 0;
     
@@ -95,28 +101,67 @@ class Stroke {
         // Join each segment
         var i = 2;
         var count = 0;
+        var skip = false;
+        var lastX = 0.0;
+        var lastY = 0.0;
+        var curX = 0.0;
+        var curY = 0.0;
+        var nextX = NUMBER_NONE;
+        var nextY = NUMBER_NONE;
+        var overlap = false;
+        var thickness = 0.0;
         while (i < total) {
-            var lastX = points.unsafeGet(i-2);
-            var lastY = points.unsafeGet(i-1);
-            var curX = points.unsafeGet(i);
-            var curY = points.unsafeGet(i+1);
-            var nextX = NUMBER_NONE;
-            var nextY = NUMBER_NONE;
+            if (!skip) {
+                lastX = points.unsafeGet(i-2);
+                lastY = points.unsafeGet(i-1);
+                curX = points.unsafeGet(i);
+                curY = points.unsafeGet(i+1);
+            }
+            nextX = NUMBER_NONE;
+            nextY = NUMBER_NONE;
+            skip = false;
+            thickness = mapThickness(curX, curY, i, points);
             if (i < total-2) {
                 nextX = points.unsafeGet(i+2);
                 nextY = points.unsafeGet(i+3);
+                if (curX == nextX && curY == nextY) {
+                    skip = true;
+                }
+                else {
+                    // Check if next segment will overlap the previous one
+                    var dist = distanceToLine(nextX, nextY, curX, curY, lastX, lastY);
+                    if (dist < thickness) {
+                        var angle = pointsAngle(curX, curY, nextX, nextY, lastX, lastY);
+                        if (angle < MATH_HALF_PI || angle > MATH_PI_AND_HALF) {
+                            // Yes, it overlaps
+                            nextX = NUMBER_NONE;
+                            nextY = NUMBER_NONE;
+                        }
+                    }
+                }
             }
-            var thickness = mapThickness(curX, curY, i, points);
-            var amt = _seg(vertices, indices, count, lastX, lastY, curX, curY, nextX, nextY, thickness * 0.5);
 
-            count += amt;
+            if (!skip) {
+                var amt = _seg(vertices, indices, count, lastX, lastY, curX, curY, nextX, nextY, thickness * 0.5);
+                count += amt;
+            }
+
+            if (nextX == NUMBER_NONE) {
+                // We either reach end or two
+                // segments are overlapping
+                _lastFlip = -1;
+                _started = false;
+                _hasNormal = false;
+                skip = false;
+            }
+
             i += 2;
         }
         
         // Is end point the same as start point?
         // TODO check if it works in all situations?
         if (canLoop && cap == BUTT) {
-            if (points[0] == points[points.length-2] && points[1] == points[points.length-1]) {
+            if (points[0] == points[points.length-2] && points[1] == points[points.length-1] && points.length > 6) {
 
                 var tmpX = (vertices[vertices.length-2] + vertices[2]) * 0.5;
                 var tmpY = (vertices[vertices.length-1] + vertices[3]) * 0.5;
@@ -221,7 +266,7 @@ class Stroke {
                 indices.push(index + 3);
             }
 
-            count += 2;
+            count += 4;
         } else { // We have a next segment, start with miter
             // Get unit dir of next line
             miterUtils.aX = nextX;
@@ -258,14 +303,16 @@ class Stroke {
                 }
             }
 
-            if (bevel) {    
+            if (bevel) {
                 // Next two points in our first segment
                 tmpX = curX + (_normalX * -halfThick * flip);
                 tmpY = curY + (_normalY * -halfThick * flip);
                 vertices.push(tmpX);
                 vertices.push(tmpY);
+                
                 tmpX = curX + (miterX * miterLen * flip);
                 tmpY = curY + (miterY * miterLen * flip);
+                //trace('tmpY1=$tmpY curY=$curY nextY=$nextY');
                 vertices.push(tmpX);
                 vertices.push(tmpY);
 
@@ -287,6 +334,7 @@ class Stroke {
                 miterUtils.normal(lineBX, lineBY);
                 tmpX = miterUtils.outX;
                 tmpY = miterUtils.outY;
+
                 // Store normal for next round
                 _normalX = tmpX;
                 _normalY = tmpY;
@@ -343,5 +391,39 @@ class Stroke {
         vertices.push(tmpY);
 
     } //extrusions
+
+    inline function pointsAngle(x:Float, y:Float, x0:Float, y0:Float, x1:Float, y1:Float):Float {
+
+        var result = Math.atan2(y1 - y, x1 - x) - Math.atan2(y0 - y, x0 - x);
+        while (result < 0) result += MATH_TWO_PI;
+        while (result > MATH_TWO_PI) result -= MATH_TWO_PI;
+        return result;
+
+    } //pointsAngle
+
+    inline function distanceToLine(x:Float, y:Float, x0:Float, y0:Float, x1:Float, y1:Float):Float {
+
+        inline function dot(_x0:Float, _y0:Float, _x1:Float, _y1:Float):Float {
+            return _x0 * _x1 + _y0 * _y1;
+        }
+
+        var vx = x1 - x0;
+        var vy = y1 - y0;
+        var wx = x - x0;
+        var wy = y - y0;
+
+        var c1 = dot(wx, wy, vx, vy);
+        var c2 = dot(vx, vy, vx, vy);
+        var b = c1 / c2;
+
+        var pbx = x0 + b * vx;
+        var pby = y0 + b * vy;
+
+        var uvx = x - pbx;
+        var uvy = y - pby;
+
+        return Math.sqrt(dot(uvx, uvy, uvx, uvy));
+
+    } //distanceToLine
 
 } //Stroke
