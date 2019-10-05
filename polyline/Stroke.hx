@@ -63,6 +63,8 @@ class Stroke {
 
     var _started = false;
 
+    var _points:Array<Float> = null;
+
     public function new() {
 
         //
@@ -110,6 +112,7 @@ class Stroke {
         var nextY = NUMBER_NONE;
         var overlap = false;
         var thickness = 0.0;
+        _points = points;
         while (i < total) {
             if (!skip) {
                 lastX = points.unsafeGet(i-2);
@@ -157,6 +160,7 @@ class Stroke {
 
             i += 2;
         }
+        _points = null;
         
         // Is end point the same as start point?
         // TODO check if it works in all situations?
@@ -215,15 +219,17 @@ class Stroke {
         if (!_started) {
             _started = true;
 
+            var halfThickStart = mapThickness(_points.unsafeGet(0), _points.unsafeGet(1), 0, _points) * 0.5;
+
             // If the end cap is type square, we can just push the verts out a bit
             if (capSquare) {
-                capEndX = lastX + (lineAX * -halfThick);
-                capEndY = lastY + (lineAY * -halfThick);
+                capEndX = lastX + (lineAX * -halfThickStart);
+                capEndY = lastY + (lineAY * -halfThickStart);
                 lastX = capEndX;
                 lastY = capEndY;
             }
 
-            extrusions(vertices, lastX, lastY, _normalX, _normalY, halfThick);
+            extrusions(vertices, lastX, lastY, _normalX, _normalY, halfThickStart);
         }
 
         indices.push(index);
