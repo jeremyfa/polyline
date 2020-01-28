@@ -20,6 +20,6 @@ class Test {
         trace(vertices);
         trace(indices);
 
-    } //main
+    }
 
-} //Test
+}

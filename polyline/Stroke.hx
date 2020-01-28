@@ -69,7 +69,7 @@ class Stroke {
 
         //
 
-    } //new
+    }
 
     public function build(points:Array<Float>, vertices:Array<Float>, indices:Array<Int>) {
 
@@ -183,13 +183,13 @@ class Stroke {
             }
         }
 
-    } //build
+    }
 
     function mapThickness(pointX:Float, pointY:Float, i:Int, points:Array<Float>) {
 
         return this.thickness;
 
-    } //mapThickness
+    }
 
     inline function _seg(vertices:Array<Float>, indices:Array<Int>, index:Int, lastX:Float, lastY:Float, curX:Float, curY:Float, nextX:Float, nextY:Float, halfThick:Float) {
 
@@ -381,7 +381,7 @@ class Stroke {
 
         return count;
 
-    } //_seg
+    }
 
     inline function extrusions(vertices:Array<Float>, pointX:Float, pointY:Float, normalX:Float, normalY:Float, scale:Float) {
 
@@ -396,7 +396,7 @@ class Stroke {
         vertices.push(tmpX);
         vertices.push(tmpY);
 
-    } //extrusions
+    }
 
     inline function pointsAngle(x:Float, y:Float, x0:Float, y0:Float, x1:Float, y1:Float):Float {
 
@@ -405,7 +405,7 @@ class Stroke {
         while (result > MATH_TWO_PI) result -= MATH_TWO_PI;
         return result;
 
-    } //pointsAngle
+    }
 
     inline function distanceToLine(x:Float, y:Float, x0:Float, y0:Float, x1:Float, y1:Float):Float {
 
@@ -430,6 +430,6 @@ class Stroke {
 
         return Math.sqrt(dot(uvx, uvy, uvx, uvy));
 
-    } //distanceToLine
+    }
 
-} //Stroke
+}

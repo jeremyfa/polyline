@@ -6,4 +6,4 @@ enum StrokeCap {
 
     SQUARE;
 
-} //StrokeCap
+}

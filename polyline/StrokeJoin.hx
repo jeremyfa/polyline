@@ -6,4 +6,4 @@ enum StrokeJoin {
 
     BEVEL;
 
-} //StrokeJoin
+}

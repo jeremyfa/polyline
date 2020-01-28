@@ -43,7 +43,7 @@ class MiterUtils {
         // Get the necessary length of our miter
         return halfThick / (miterX * tmpX + miterY * tmpY);
 
-    } //computeMiter
+    }
 
     inline public function normal(dirX:Float, dirY:Float) {
 
@@ -51,7 +51,7 @@ class MiterUtils {
         outX = -dirY;
         outY = dirX;
 
-    } //normal
+    }
 
     inline public function direction() {
 
@@ -65,6 +65,6 @@ class MiterUtils {
             outY = outY * len;
         }
 
-    } //direction
+    }
 
-} //MiterUtils
+}
