@@ -1,0 +1,11 @@
+{
+  "name": "polyline",
+  "url": "https://github.com/jeremyfa/polyline",
+  "license": "MIT",
+  "tags": ["cross", "graphics", "geometry"],
+  "description": "An utility to create polylines (ported from mattdesl/extrude-polyline)",
+  "version": "1.0.0",
+  "releasenote": "",
+  "contributors": ["jeremyfa"],
+  "dependencies": {}
+}
