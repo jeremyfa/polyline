@@ -162,24 +162,84 @@ class Stroke {
         }
         _points = null;
         
-        // Is end point the same as start point?
-        // TODO check if it works in all situations?
+        // Is end point the same as start point? If so, compute proper miter join.
         if (canLoop && cap == BUTT) {
             if (points[0] == points[points.length-2] && points[1] == points[points.length-1] && points.length > 6) {
 
-                var tmpX = (vertices[vertices.length-2] + vertices[2]) * 0.5;
-                var tmpY = (vertices[vertices.length-1] + vertices[3]) * 0.5;
-                vertices[vertices.length-2] = tmpX;
-                vertices[2] = tmpX;
-                vertices[vertices.length-1] = tmpY;
-                vertices[3] = tmpY;
+                // Get the second point (first segment direction: points[0,1] -> points[2,3])
+                var firstNextX = points[2];
+                var firstNextY = points[3];
 
-                tmpX = (vertices[vertices.length-4] + vertices[0]) * 0.5;
-                tmpY = (vertices[vertices.length-3] + vertices[1]) * 0.5;
-                vertices[vertices.length-4] = tmpX;
-                vertices[0] = tmpX;
-                vertices[vertices.length-3] = tmpY;
-                vertices[1] = tmpY;
+                // Get the second-to-last point (last segment direction: points[n-4,n-3] -> points[n-2,n-1])
+                var lastPrevX = points[points.length - 4];
+                var lastPrevY = points[points.length - 3];
+
+                // The join point
+                var joinX = points[0];
+                var joinY = points[1];
+
+                // Direction of first segment (from join point to next point)
+                miterUtils.aX = firstNextX;
+                miterUtils.aY = firstNextY;
+                miterUtils.bX = joinX;
+                miterUtils.bY = joinY;
+                miterUtils.direction();
+                var lineAX = miterUtils.outX;
+                var lineAY = miterUtils.outY;
+
+                // Direction of last segment (from previous point to join point)
+                miterUtils.aX = joinX;
+                miterUtils.aY = joinY;
+                miterUtils.bX = lastPrevX;
+                miterUtils.bY = lastPrevY;
+                miterUtils.direction();
+                var lineBX = miterUtils.outX;
+                var lineBY = miterUtils.outY;
+
+                // Compute miter
+                miterUtils.aX = lineBX;  // Last segment direction
+                miterUtils.aY = lineBY;
+                miterUtils.bX = lineAX;  // First segment direction
+                miterUtils.bY = lineAY;
+                var halfThick = thickness * 0.5;
+                var miterLen = miterUtils.computeMiter(halfThick);
+                var loopMiterX = miterUtils.miterX;
+                var loopMiterY = miterUtils.miterY;
+
+                // Check if miter exceeds limit (fall back to bevel-like behavior)
+                var joinBevel = (join == BEVEL);
+                if (!joinBevel && join == MITER) {
+                    var limit = miterLen / halfThick;
+                    if (limit > miterLimit) {
+                        joinBevel = true;
+                    }
+                }
+
+                if (joinBevel) {
+                    // For bevel, use normal extrusion (simpler, just use thickness)
+                    miterUtils.normal(lineBX, lineBY);
+                    loopMiterX = miterUtils.outX;
+                    loopMiterY = miterUtils.outY;
+                    miterLen = halfThick;
+                }
+
+                // Compute the two extruded vertices at the join point
+                var extrudeX1 = joinX + (loopMiterX * -miterLen);
+                var extrudeY1 = joinY + (loopMiterY * -miterLen);
+                var extrudeX2 = joinX + (loopMiterX * miterLen);
+                var extrudeY2 = joinY + (loopMiterY * miterLen);
+
+                // Update start vertices (indices 0,1 and 2,3)
+                vertices[0] = extrudeX1;
+                vertices[1] = extrudeY1;
+                vertices[2] = extrudeX2;
+                vertices[3] = extrudeY2;
+
+                // Update end vertices (last 4 values)
+                vertices[vertices.length - 4] = extrudeX1;
+                vertices[vertices.length - 3] = extrudeY1;
+                vertices[vertices.length - 2] = extrudeX2;
+                vertices[vertices.length - 1] = extrudeY2;
             }
         }
 
