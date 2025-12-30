@@ -100,6 +100,22 @@ class Stroke {
         _started = false;
         _hasNormal = false;
 
+        // Check for midpoint looping: when loop is enabled and first point == last point,
+        // we start and end the stroke at the midpoint between first and second points.
+        // This makes the loop join trivial since there's no angle change at the midpoint.
+        var shouldMidpointLoop = false;
+        var loopMidX = 0.0;
+        var loopMidY = 0.0;
+        var loopFirstSegmentDone = false;
+
+        if (canLoop && cap == BUTT && points.length > 6) {
+            if (points[0] == points[points.length - 2] && points[1] == points[points.length - 1]) {
+                shouldMidpointLoop = true;
+                loopMidX = (points[0] + points[2]) * 0.5;
+                loopMidY = (points[1] + points[3]) * 0.5;
+            }
+        }
+
         // Join each segment
         var i = 2;
         var count = 0;
@@ -119,6 +135,13 @@ class Stroke {
                 lastY = points.unsafeGet(i-1);
                 curX = points.unsafeGet(i);
                 curY = points.unsafeGet(i+1);
+
+                // For midpoint looping: first segment starts from midpoint instead of first point
+                if (shouldMidpointLoop && !loopFirstSegmentDone) {
+                    lastX = loopMidX;
+                    lastY = loopMidY;
+                    loopFirstSegmentDone = true;
+                }
             }
             nextX = NUMBER_NONE;
             nextY = NUMBER_NONE;
@@ -141,6 +164,11 @@ class Stroke {
                         }
                     }
                 }
+            } else if (shouldMidpointLoop) {
+                // For midpoint looping: on last iteration, next point is the midpoint
+                // This creates a proper joint at P0 toward the midpoint
+                nextX = loopMidX;
+                nextY = loopMidY;
             }
 
             if (!skip) {
@@ -148,8 +176,8 @@ class Stroke {
                 count += amt;
             }
 
-            if (nextX == NUMBER_NONE) {
-                // We reach end of line
+            if (nextX == NUMBER_NONE && !shouldMidpointLoop) {
+                // We reach end of line (non-looping case)
                 _lastFlip = -1;
                 _started = false;
                 _hasNormal = false;
@@ -161,89 +189,31 @@ class Stroke {
 
             i += 2;
         }
-        _points = null;
-        
-        // Is end point the same as start point? If so, compute proper miter join.
-        if (canLoop && cap == BUTT) {
-            if (points[0] == points[points.length-2] && points[1] == points[points.length-1] && points.length > 6) {
 
-                // Get the second point (first segment direction: points[0,1] -> points[2,3])
-                var firstNextX = points[2];
-                var firstNextY = points[3];
+        // For midpoint looping: add final segment from loop point back to midpoint
+        if (shouldMidpointLoop) {
+            // The last processed point was the loop point (points[0] = points[n-2])
+            // Now we need to add a segment from loop point to midpoint
+            lastX = points[points.length - 2];
+            lastY = points[points.length - 1];
+            curX = loopMidX;
+            curY = loopMidY;
+            // No next segment - this is the end
+            nextX = NUMBER_NONE;
+            nextY = NUMBER_NONE;
+            thickness = mapThickness(curX, curY, 0, points);
+            var amt = _seg(vertices, indices, count, lastX, lastY, curX, curY, nextX, nextY, thickness * 0.5, false);
+            count += amt;
 
-                // Get the second-to-last point (last segment direction: points[n-4,n-3] -> points[n-2,n-1])
-                var lastPrevX = points[points.length - 4];
-                var lastPrevY = points[points.length - 3];
-
-                // The join point
-                var joinX = points[0];
-                var joinY = points[1];
-
-                // Direction of first segment (from join point to next point)
-                miterUtils.aX = firstNextX;
-                miterUtils.aY = firstNextY;
-                miterUtils.bX = joinX;
-                miterUtils.bY = joinY;
-                miterUtils.direction();
-                var lineAX = miterUtils.outX;
-                var lineAY = miterUtils.outY;
-
-                // Direction of last segment (from previous point to join point)
-                miterUtils.aX = joinX;
-                miterUtils.aY = joinY;
-                miterUtils.bX = lastPrevX;
-                miterUtils.bY = lastPrevY;
-                miterUtils.direction();
-                var lineBX = miterUtils.outX;
-                var lineBY = miterUtils.outY;
-
-                // Compute miter
-                miterUtils.aX = lineBX;  // Last segment direction
-                miterUtils.aY = lineBY;
-                miterUtils.bX = lineAX;  // First segment direction
-                miterUtils.bY = lineAY;
-                var halfThick = thickness * 0.5;
-                var miterLen = miterUtils.computeMiter(halfThick);
-                var loopMiterX = miterUtils.miterX;
-                var loopMiterY = miterUtils.miterY;
-
-                // Check if miter exceeds limit (fall back to bevel-like behavior)
-                var joinBevel = (join == BEVEL);
-                if (!joinBevel && join == MITER) {
-                    var limit = miterLen / halfThick;
-                    if (limit > miterLimit) {
-                        joinBevel = true;
-                    }
-                }
-
-                if (joinBevel) {
-                    // For bevel, use normal extrusion (simpler, just use thickness)
-                    miterUtils.normal(lineBX, lineBY);
-                    loopMiterX = miterUtils.outX;
-                    loopMiterY = miterUtils.outY;
-                    miterLen = halfThick;
-                }
-
-                // Compute the two extruded vertices at the join point
-                var extrudeX1 = joinX + (loopMiterX * -miterLen);
-                var extrudeY1 = joinY + (loopMiterY * -miterLen);
-                var extrudeX2 = joinX + (loopMiterX * miterLen);
-                var extrudeY2 = joinY + (loopMiterY * miterLen);
-
-                // Update start vertices (indices 0,1 and 2,3)
-                vertices[0] = extrudeX1;
-                vertices[1] = extrudeY1;
-                vertices[2] = extrudeX2;
-                vertices[3] = extrudeY2;
-
-                // Update end vertices (last 4 values)
-                vertices[vertices.length - 4] = extrudeX1;
-                vertices[vertices.length - 3] = extrudeY1;
-                vertices[vertices.length - 2] = extrudeX2;
-                vertices[vertices.length - 1] = extrudeY2;
-            }
+            // Copy end vertices to start vertices for seamless join
+            // The last 4 values are the end vertices, first 4 are the start vertices
+            vertices[0] = vertices[vertices.length - 4];
+            vertices[1] = vertices[vertices.length - 3];
+            vertices[2] = vertices[vertices.length - 2];
+            vertices[3] = vertices[vertices.length - 1];
         }
 
+        _points = null;
     }
 
     function mapThickness(pointX:Float, pointY:Float, i:Int, points:Array<Float>) {
