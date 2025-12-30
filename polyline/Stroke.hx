@@ -131,32 +131,33 @@ class Stroke {
                     skip = true;
                 }
                 else {
-                    // Check if next segment will overlap the previous one
+                    // Check if next segment will fold back (angle close to 180 degrees)
                     var dist = distanceToLine(nextX, nextY, curX, curY, lastX, lastY);
                     if (dist < thickness) {
                         var angle = pointsAngle(curX, curY, nextX, nextY, lastX, lastY);
                         if (angle < MATH_HALF_PI || angle > MATH_PI_AND_HALF) {
-                            // Yes, it overlaps
-                            nextX = NUMBER_NONE;
-                            nextY = NUMBER_NONE;
+                            // Mark as fold-back case - don't split the line
+                            overlap = true;
                         }
                     }
                 }
             }
 
             if (!skip) {
-                var amt = _seg(vertices, indices, count, lastX, lastY, curX, curY, nextX, nextY, thickness * 0.5);
+                var amt = _seg(vertices, indices, count, lastX, lastY, curX, curY, nextX, nextY, thickness * 0.5, overlap);
                 count += amt;
             }
 
             if (nextX == NUMBER_NONE) {
-                // We either reach end or two
-                // segments are overlapping
+                // We reach end of line
                 _lastFlip = -1;
                 _started = false;
                 _hasNormal = false;
                 skip = false;
             }
+
+            // Reset overlap flag for next iteration
+            overlap = false;
 
             i += 2;
         }
@@ -251,7 +252,7 @@ class Stroke {
 
     }
 
-    inline function _seg(vertices:Array<Float>, indices:Array<Int>, index:Int, lastX:Float, lastY:Float, curX:Float, curY:Float, nextX:Float, nextY:Float, halfThick:Float) {
+    inline function _seg(vertices:Array<Float>, indices:Array<Int>, index:Int, lastX:Float, lastY:Float, curX:Float, curY:Float, nextX:Float, nextY:Float, halfThick:Float, isFoldBack:Bool = false) {
 
         var count = 0;
         var capSquare = (this.cap == SQUARE);
@@ -343,6 +344,147 @@ class Stroke {
             lineBX = miterUtils.outX;
             lineBY = miterUtils.outY;
 
+            if (isFoldBack) {
+                // FOLD-BACK CASE: Angle is close to 180 degrees
+                // Create geometry that uses inner corner as pivot, outer corner respects join setting
+
+                // Get normal of current segment
+                miterUtils.normal(lineAX, lineAY);
+                var normalAX = miterUtils.outX;
+                var normalAY = miterUtils.outY;
+
+                // Get normal of next segment
+                miterUtils.normal(lineBX, lineBY);
+                var normalBX = miterUtils.outX;
+                var normalBY = miterUtils.outY;
+
+                // Determine which side is "inner" (the side where the turn is)
+                // Use cross product to determine turn direction
+                var cross = lineAX * lineBY - lineAY * lineBX;
+                var innerFlip = cross > 0 ? 1 : -1;
+
+                // Handle exact 180-degree case (cross product ~= 0)
+                if (cross > -0.001 && cross < 0.001) {
+                    innerFlip = _lastFlip != 0 ? _lastFlip : 1;
+                }
+
+                // Inner side: both segments share the same extruded vertex
+                var innerX = curX + normalAX * halfThick * innerFlip;
+                var innerY = curY + normalAY * halfThick * innerFlip;
+
+                // Outer side: each segment has its own extruded vertex
+                var outerAX = curX + normalAX * halfThick * (-innerFlip);
+                var outerAY = curY + normalAY * halfThick * (-innerFlip);
+                var outerBX = curX + normalBX * halfThick * (-innerFlip);
+                var outerBY = curY + normalBY * halfThick * (-innerFlip);
+
+                // End current segment with: inner corner + outer corner A
+                if (innerFlip == 1) {
+                    vertices.push(outerAX);
+                    vertices.push(outerAY);
+                    vertices.push(innerX);
+                    vertices.push(innerY);
+                } else {
+                    vertices.push(innerX);
+                    vertices.push(innerY);
+                    vertices.push(outerAX);
+                    vertices.push(outerAY);
+                }
+
+                // Complete the quad for current segment
+                if (_lastFlip == 1) {
+                    indices.push(index);
+                    indices.push(index + 2);
+                    indices.push(index + 3);
+                } else {
+                    indices.push(index + 2);
+                    indices.push(index + 1);
+                    indices.push(index + 3);
+                }
+
+                if (joinBevel) {
+                    // BEVEL: Add a flat quad on the outer side
+                    // We need 4 vertices for a proper flat fold:
+                    // outerA, outerA' (perpendicular), outerB' (perpendicular), outerB
+
+                    // Compute perpendicular points at the fold
+                    // Use the bisector direction for the flat edge
+                    var bisectX = -(lineAX - lineBX);
+                    var bisectY = -(lineAY - lineBY);
+                    var bisectLen = Math.sqrt(bisectX * bisectX + bisectY * bisectY);
+                    if (bisectLen > 0.001) {
+                        bisectX /= bisectLen;
+                        bisectY /= bisectLen;
+                    } else {
+                        // Fallback: use perpendicular to lineA
+                        bisectX = -lineAY;
+                        bisectY = lineAX;
+                    }
+
+                    // Flat edge vertices perpendicular to bisector
+                    var flatDist = halfThick;
+                    var flatAX = outerAX + bisectX * flatDist * (-innerFlip);
+                    var flatAY = outerAY + bisectY * flatDist * (-innerFlip);
+                    var flatBX = outerBX + bisectX * flatDist * (-innerFlip);
+                    var flatBY = outerBY + bisectY * flatDist * (-innerFlip);
+
+                    // Add vertices for the flat fold (2 triangles forming a quad)
+                    vertices.push(flatAX);
+                    vertices.push(flatAY);
+                    vertices.push(flatBX);
+                    vertices.push(flatBY);
+                    vertices.push(outerBX);
+                    vertices.push(outerBY);
+
+                    // Triangle 1: outerA, flatA, flatB (or inner, depending on flip)
+                    if (innerFlip == 1) {
+                        // outerA is at index+2, inner at index+3
+                        indices.push(index + 2); // outerA
+                        indices.push(index + 4); // flatA
+                        indices.push(index + 5); // flatB
+                        // Triangle 2: outerA, flatB, outerB
+                        indices.push(index + 2); // outerA
+                        indices.push(index + 5); // flatB
+                        indices.push(index + 6); // outerB
+                    } else {
+                        // inner is at index+2, outerA at index+3
+                        indices.push(index + 3); // outerA
+                        indices.push(index + 4); // flatA
+                        indices.push(index + 5); // flatB
+                        // Triangle 2: outerA, flatB, outerB
+                        indices.push(index + 3); // outerA
+                        indices.push(index + 5); // flatB
+                        indices.push(index + 6); // outerB
+                    }
+
+                    count += 5; // Added 5 new vertices (inner/outerA pair + flatA + flatB + outerB)
+                } else {
+                    // MITER: Add fold triangle connecting (inner, outerA, outerB) - pointed shape
+                    vertices.push(outerBX);
+                    vertices.push(outerBY);
+
+                    // Add the fold triangle
+                    if (innerFlip == 1) {
+                        // outerA is at index+2, inner at index+3
+                        indices.push(index + 3); // inner
+                        indices.push(index + 2); // outerA
+                        indices.push(index + 4); // outerB
+                    } else {
+                        // inner is at index+2, outerA at index+3
+                        indices.push(index + 2); // inner
+                        indices.push(index + 3); // outerA
+                        indices.push(index + 4); // outerB
+                    }
+
+                    count += 3; // Added 3 new vertices (inner, outerA, outerB)
+                }
+
+                // Set up normal for next segment
+                _normalX = normalBX;
+                _normalY = normalBY;
+                _lastFlip = -innerFlip;
+
+            } else {
             // Stores tangent & miter
             miterUtils.tangentX = tangentX;
             miterUtils.tangentY = tangentY;
@@ -437,6 +579,7 @@ class Stroke {
             }
 
             _lastFlip = flip;
+            } // end of non-fold-back else branch
         }
 
         return count;
